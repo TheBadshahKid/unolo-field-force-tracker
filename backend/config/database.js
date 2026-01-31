@@ -1,34 +1,83 @@
-const Database = require('better-sqlite3');
+const fs = require('fs');
 const path = require('path');
+const initSqlJs = require('sql.js');
 
 const dbPath = path.join(__dirname, '..', 'database.sqlite');
-const db = new Database(dbPath);
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+let SQL = null;
 
-// Helper to make it work like mysql2 promises (for compatibility)
-const execute = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
+// Initialize sql.js
+async function initSQL() {
+    if (!SQL) {
+        SQL = await initSqlJs();
+    }
+    return SQL;
+}
+
+// Get a fresh database instance from file
+async function getDatabase() {
+    const SqlJs = await initSQL();
+
+    if (fs.existsSync(dbPath)) {
+        const buffer = fs.readFileSync(dbPath);
+        const db = new SqlJs.Database(buffer);
+        db.run('PRAGMA foreign_keys = ON');
+        return db;
+    } else {
+        const db = new SqlJs.Database();
+        db.run('PRAGMA foreign_keys = ON');
+        return db;
+    }
+}
+
+// Wrapper to mimic better-sqlite3/mysql2 API
+const pool = {
+    execute: async (sql, params = []) => {
+        const db = await getDatabase();
+
         try {
-            // Replace MySQL ? placeholders - SQLite also uses ? so this should work
+            // Handle SELECT queries
             if (sql.trim().toUpperCase().startsWith('SELECT')) {
                 const stmt = db.prepare(sql);
-                const rows = stmt.all(...params);
-                resolve([rows]);
-            } else if (sql.trim().toUpperCase().startsWith('INSERT')) {
-                const stmt = db.prepare(sql);
-                const result = stmt.run(...params);
-                resolve([{ insertId: result.lastInsertRowid, affectedRows: result.changes }]);
-            } else {
-                const stmt = db.prepare(sql);
-                const result = stmt.run(...params);
-                resolve([{ affectedRows: result.changes }]);
+                stmt.bind(params);
+
+                const rows = [];
+                while (stmt.step()) {
+                    rows.push(stmt.getAsObject());
+                }
+                stmt.free();
+                db.close();
+
+                return [rows];
             }
+
+            // Handle INSERT/UPDATE/DELETE
+            db.run(sql, params);
+
+            // Get changes info before closing
+            const changesResult = db.exec('SELECT changes() as changes');
+            const lastIdResult = db.exec('SELECT last_insert_rowid() as id');
+
+            // Save changes to file
+            const data = db.export();
+            fs.writeFileSync(dbPath, Buffer.from(data));
+
+            const changes = changesResult[0]?.values[0][0] || 0;
+            const lastId = lastIdResult[0]?.values[0][0] || 0;
+
+            db.close();
+
+            return [{
+                insertId: lastId,
+                affectedRows: changes,
+                changes: changes
+            }];
         } catch (error) {
-            reject(error);
+            db.close();
+            console.error('Database error:', error);
+            throw error;
         }
-    });
+    }
 };
 
-module.exports = { execute };
+module.exports = pool;
