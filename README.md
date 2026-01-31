@@ -129,6 +129,11 @@ When checking in, the application now:
 ## Bug Fixes Applied
 
 See `BUG_FIXES.md` for detailed documentation of all bugs found and fixed.
+<img width="1626" height="713" alt="Screenshot 2026-01-31 153914" src="https://github.com/user-attachments/assets/c965d4a5-b48b-4d6b-b3ca-6374a24093a4" />
+<img width="1654" height="921" alt="Screenshot 2026-01-31 154108" src="https://github.com/user-attachments/assets/4a9f7471-118c-45eb-9e35-437211876895" />
+<img width="1629" height="654" alt="Screenshot 2026-01-31 154034" src="https://github.com/user-attachments/assets/d65544b6-d3f5-412d-9739-8276b61adff2" />
+
+
 
 ## Notes
 
