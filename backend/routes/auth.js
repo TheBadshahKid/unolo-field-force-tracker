@@ -10,6 +10,8 @@ router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
+
+
         if (!email || !password) {
             return res.status(400).json({ success: false, message: 'Email and password required' });
         }
@@ -19,20 +21,25 @@ router.post('/login', async (req, res) => {
             [email]
         );
 
-        if (users.length === 0) {
+
+
+        if (!users || users.length === 0) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
         const user = users[0];
-        
+
+
         const isValidPassword = await bcrypt.compare(password, user.password);
-        
+
+
+
         if (!isValidPassword) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
         const token = jwt.sign(
-            {  id: user.id, email: user.email, role: user.role, name: user.name },
+            { id: user.id, email: user.email, role: user.role, name: user.name },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );

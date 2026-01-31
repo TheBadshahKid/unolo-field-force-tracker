@@ -11,6 +11,20 @@ function CheckIn({ user }) {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [currentDistance, setCurrentDistance] = useState(null);
+
+    // Haversine formula for distance calculation
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
 
     useEffect(() => {
         fetchData();
@@ -69,9 +83,16 @@ function CheckIn({ user }) {
             });
 
             if (response.data.success) {
-                setSuccess('Checked in successfully!');
+                const distanceInfo = response.data.data.distance_from_client
+                    ? ` (Distance: ${response.data.data.distance_from_client} km)`
+                    : '';
+                const warningInfo = response.data.data.distance_warning
+                    ? ` - ${response.data.data.distance_warning}`
+                    : '';
+                setSuccess(`Checked in successfully!${distanceInfo}${warningInfo}`);
                 setSelectedClient('');
                 setNotes('');
+                setCurrentDistance(null);
                 fetchData(); // Refresh data
             } else {
                 setError(response.data.message);
@@ -83,6 +104,29 @@ function CheckIn({ user }) {
         }
     };
 
+    // Handle client selection and calculate distance
+    const handleClientChange = (e) => {
+        const clientId = e.target.value;
+        setSelectedClient(clientId);
+
+        if (clientId && location) {
+            const client = clients.find(c => c.id === parseInt(clientId));
+            if (client && client.latitude && client.longitude) {
+                const dist = calculateDistance(
+                    location.latitude,
+                    location.longitude,
+                    client.latitude,
+                    client.longitude
+                );
+                setCurrentDistance(parseFloat(dist.toFixed(2)));
+            } else {
+                setCurrentDistance(null);
+            }
+        } else {
+            setCurrentDistance(null);
+        }
+    };
+
     const handleCheckOut = async () => {
         setError('');
         setSuccess('');
@@ -90,7 +134,7 @@ function CheckIn({ user }) {
 
         try {
             const response = await api.put('/checkin/checkout');
-            
+
             if (response.data.success) {
                 setSuccess('Checked out successfully!');
                 setActiveCheckin(null);
@@ -164,7 +208,7 @@ function CheckIn({ user }) {
             {!activeCheckin && (
                 <div className="bg-white rounded-lg shadow p-6">
                     <h3 className="font-semibold mb-4">New Check-in</h3>
-                    
+
                     <form onSubmit={handleCheckIn}>
                         <div className="mb-4">
                             <label className="block text-gray-700 text-sm font-medium mb-2">
@@ -172,7 +216,7 @@ function CheckIn({ user }) {
                             </label>
                             <select
                                 value={selectedClient}
-                                onChange={(e) => setSelectedClient(e.target.value)}
+                                onChange={handleClientChange}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 required
                             >
@@ -184,6 +228,24 @@ function CheckIn({ user }) {
                                 ))}
                             </select>
                         </div>
+
+                        {/* Distance Display */}
+                        {currentDistance !== null && (
+                            <div className={`mb-4 p-3 rounded-md ${currentDistance > 0.5
+                                    ? 'bg-yellow-100 border border-yellow-400'
+                                    : 'bg-green-100 border border-green-400'
+                                }`}>
+                                <p className={`text-sm font-medium ${currentDistance > 0.5 ? 'text-yellow-800' : 'text-green-800'
+                                    }`}>
+                                    📍 Distance from client: {currentDistance} km
+                                    {currentDistance > 0.5 && (
+                                        <span className="block mt-1 text-yellow-700">
+                                            ⚠️ Warning: You are far from the client location
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        )}
 
                         <div className="mb-4">
                             <label className="block text-gray-700 text-sm font-medium mb-2">
